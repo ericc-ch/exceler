@@ -14,3 +14,4 @@ Prefer exploring and reading this directory over searching for documentation. Th
 Available references:
 
 - effect-smol - Effect v4
+- llama.cpp - llama.cpp

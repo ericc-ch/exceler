@@ -17,6 +17,11 @@ const repositories = [
     directory: "effect-smol",
     url: "https://github.com/Effect-TS/effect-smol.git",
   },
+  {
+    name: "llama.cpp",
+    directory: "llama.cpp",
+    url: "https://github.com/ggml-org/llama.cpp.git",
+  },
 ] satisfies ReadonlyArray<ReferenceRepository>
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
