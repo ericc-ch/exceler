@@ -1,8 +1,8 @@
-Use pnpm as package manager.
+Use Bun as package manager.
 
-Run `pnpm run check` after completing a task.
+Run `bun run check` after completing a task.
 
-Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx or compilation etc).
+Bun can run `.ts` files directly (no need for ts-node or tsx or compilation etc).
 
 # References Directory
 

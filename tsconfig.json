@@ -35,7 +35,7 @@
     "forceConsistentCasingInFileNames": true,
     "erasableSyntaxOnly": true,
 
-    "types": ["node"],
+    "types": ["bun"],
 
     "plugins": [
       {
