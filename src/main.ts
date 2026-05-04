@@ -1,6 +1,16 @@
-export const one = 1
-export const two = 2
+import { NodeHttpClient, NodeRuntime, NodeServices } from "@effect/platform-node"
+import { Effect, Layer } from "effect"
+import { LlamaCpp } from "./lib/llama-cpp.ts"
 
-export function add(a: number, b: number): number {
-  return a + b
-}
+const main = Effect.gen(function* () {
+  const llamaCpp = yield* LlamaCpp
+  yield* llamaCpp.install
+})
+
+const Layers = Layer.empty.pipe(
+  Layer.merge(LlamaCpp.layer),
+  Layer.provide(NodeServices.layer),
+  Layer.provide(NodeHttpClient.layerFetch),
+)
+
+NodeRuntime.runMain(main.pipe(Effect.provide(Layers)))

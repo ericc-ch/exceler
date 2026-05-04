@@ -40,7 +40,7 @@
     "prepare": "simple-git-hooks && effect-language-service patch && bun run scripts/references.ts",
     "prepack": "bun run build",
     "release": "bumpp && npm publish",
-    "start": "bun run src/cli.ts",
+    "start": "bun ./src/main.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
