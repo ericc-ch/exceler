@@ -1,7 +1,8 @@
-import { Context, Data, Effect, FileSystem, Path, Schema } from "effect"
+import { Context, Data, Effect, FileSystem, Layer, Path, Schema, Stream } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/unstable/http"
-import { NodeHttpClient } from "@effect/platform-node"
-import { $ } from "bun"
+import { ChildProcess } from "effect/unstable/process"
+import { ExitCode } from "effect/unstable/process/ChildProcessSpawner"
+import { NodeHttpClient, NodeServices } from "@effect/platform-node"
 import envPaths from "env-paths"
 
 const latestReleaseUrl = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
@@ -65,7 +66,10 @@ export const installLlamaCpp = Effect.gen(function* () {
   }
 
   return new LlamaCppInstall({ tag: release.tag_name, installDir, llamaCli, llamaServer })
-}).pipe(Effect.provide(NodeHttpClient.layerUndici), Effect.mapError(toInstallError))
+}).pipe(
+  Effect.provide(Layer.mergeAll(NodeHttpClient.layerUndici, NodeServices.layer)),
+  Effect.mapError(toInstallError),
+)
 
 export class LlamaCpp extends Context.Service<LlamaCpp>()("LlamaCpp", {
   make: Effect.succeed({
@@ -106,7 +110,6 @@ export function selectCpuAsset(
 const fetchLatestRelease = HttpClient.get(latestReleaseUrl, {
   headers: {
     Accept: "application/vnd.github+json",
-    "User-Agent": "exceler",
   },
 }).pipe(
   Effect.flatMap(HttpClientResponse.filterStatusOk),
@@ -117,11 +120,7 @@ const fetchLatestRelease = HttpClient.get(latestReleaseUrl, {
 function download(url: string, destination: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
-    const response = yield* HttpClient.get(url, {
-      headers: {
-        "User-Agent": "exceler",
-      },
-    })
+    const response = yield* HttpClient.get(url)
     const bytes = yield* response.pipe(
       HttpClientResponse.filterStatusOk,
       Effect.flatMap((response) => response.arrayBuffer),
@@ -133,24 +132,36 @@ function download(url: string, destination: string) {
 }
 
 function extractArchive(archivePath: string, destination: string) {
-  return Effect.tryPromise({
-    try: async () => {
-      if (archivePath.endsWith(".tar.gz")) {
-        await $`tar -xzf ${archivePath} -C ${destination}`
-        return
-      }
+  if (archivePath.endsWith(".tar.gz")) {
+    return runExtractCommand("tar", ["-xzf", archivePath, "-C", destination])
+  }
 
-      if (archivePath.endsWith(".zip")) {
-        await $`unzip -q ${archivePath} -d ${destination}`
-        return
-      }
+  if (archivePath.endsWith(".zip")) {
+    return runExtractCommand("unzip", ["-q", archivePath, "-d", destination])
+  }
 
-      throw new LlamaCppInstallError({
-        message: `Unsupported llama.cpp archive format: ${archivePath}`,
+  return Effect.fail(
+    new LlamaCppInstallError({
+      message: `Unsupported llama.cpp archive format: ${archivePath}`,
+    }),
+  ).pipe(Effect.mapError(toInstallError))
+}
+
+function runExtractCommand(command: string, args: ReadonlyArray<string>) {
+  return Effect.gen(function* () {
+    const handle = yield* ChildProcess.make(command, args)
+    yield* Stream.runDrain(handle.stdout)
+    const stderrParts = yield* Stream.runCollect(Stream.decodeText(handle.stderr))
+    const stderr = stderrParts.join("")
+    const exitCode = yield* handle.exitCode
+
+    if (exitCode !== ExitCode(0)) {
+      const stderrNote = stderr.trim().length > 0 ? stderr.trim() : "(empty stderr)"
+      return yield* new LlamaCppInstallError({
+        message: `${command} failed with exit code ${exitCode}. stderr: ${stderrNote}`,
       })
-    },
-    catch: toInstallError,
-  })
+    }
+  }).pipe(Effect.scoped, Effect.mapError(toInstallError))
 }
 
 function platformAssetPart(platform: NodeJS.Platform): string {
